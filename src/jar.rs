@@ -5,8 +5,9 @@ use crate::{
         Constraints, ConstraintsField, ConstraintsLimitDisclosure, InputDescriptor,
         PresentationDefinition,
     },
-    utils::NonEmptyVec,
+    utils::NonEmptyVec, mdl_request,
 };
+use isomdl::definitions::helpers::NonEmptyMap;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -77,13 +78,14 @@ pub fn get_request_object(
         client_id: id.to_string(),
         client_id_scheme: Some("wib".to_string()),
         redirect_uri: Some("xyz".to_string()),
-        scope: Some("asd".to_string()),
+        scope: None,
         state: "someopauquestring".to_string(),
         presentation_definition: Some(presentation_definition),
-        presentation_definition_uri: Some("x".to_string()),
+        presentation_definition_uri: None,
         client_metadata: "String".to_string(),
         client_metadata_uri: Some(serde_json::Value::String("".to_string())),
         response_mode: Some("direct_post".to_string()),
+        nonce: Some("random".to_string())
     };
     let algorithm = signing_key.algorithm.unwrap();
     ssi::jwt::encode_sign(algorithm, &auth_request_jwt, &signing_key)
@@ -96,17 +98,18 @@ pub fn get_jar_by_reference(
 ) -> Result<String, ssi::jws::Error> {
     let jar = JwtAuthorizationRequest {
         request: None,
-        request_uri: Some(format!("{}/{}/request", api_prefix, id)),
-        nonce: gen_nonce(),
+        request_uri: Some(format!("{}/{}/request_object", api_prefix, id)),
+        nonce: gen_nonce(), // TODO: fix
         response_type: "vp_token".to_string(),
-        client_id: id.to_string(),
+        client_id: id.to_string(), //TODOL client_id should be 
     };
 
     ssi::jwt::encode_sign(jwk.get_algorithm().unwrap(), &jar, &jwk)
 }
 
-pub fn get_jar_by_value(id: Uuid, jwk: JWK) -> Result<String, ssi::jws::Error> {
+pub fn get_jar_by_value(requested_fields: NonEmptyMap<String, NonEmptyMap<Option<String>, Option<bool>>>, id: Uuid, jwk: JWK, redirect_uri: String, presentation_id: String) -> Result<String, ssi::jws::Error> {
     let ar = get_request_object(jwk.clone(), id)?;
+    let auth_req = mdl_request::prepare_mdl_request_object(requested_fields, id.to_string(), redirect_uri, presentation_id).unwrap();
 
     let jar = JwtAuthorizationRequest {
         request: Some(ar),
@@ -143,6 +146,7 @@ pub struct RequestObject {
     pub client_metadata: String,
     pub client_metadata_uri: Option<Value>,
     pub response_mode: Option<String>,
+    pub nonce: Option<String>,
 }
 
 pub struct AuthorizationResponse {

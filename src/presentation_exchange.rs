@@ -1,6 +1,7 @@
 use crate::utils::NonEmptyVec;
+use isomdl::definitions::namespaces::org_iso_18013_5_1_aamva::Present;
 use serde::{Deserialize, Serialize};
-use serde_json::Map;
+use serde_json::{Map, Value};
 
 // TODO does openidconnect have a Request type?
 #[derive(Debug, Deserialize)]
@@ -17,6 +18,16 @@ pub struct VpTokenIdToken {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VpToken {
     pub presentation_definition: PresentationDefinition,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RequestObject{
+    pub presentation_definition: PresentationDefinition,
+    pub presentation_definition_uri: Option<String>,
+    pub client_id_scheme: Option<String>,
+    pub client_metadata: Option<Value>,
+    pub client_metadata_uri: Option<String>,
+
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -71,6 +82,8 @@ pub struct ConstraintsField {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intent_to_retain: Option<bool>,
 }
+
+pub type ConstraintsFields = Vec<ConstraintsField>;
 
 impl ConstraintsField {
     pub fn new(

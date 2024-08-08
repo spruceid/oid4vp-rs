@@ -1,10 +1,17 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, str::FromStr, sync::Arc};
 
 use anyhow::{bail, Context as _, Result};
 use async_trait::async_trait;
 use base64::prelude::*;
 use serde_json::{json, Value as Json};
-use ssi::did_resolve::DIDResolver;
+use ssi::{
+    dids::{DIDBuf, DIDResolver, VerificationMethodDIDResolver, DID},
+    jwk::JWKResolver,
+    verification_methods::{
+        GenericVerificationMethod, InvalidVerificationMethod, MaybeJwkVerificationMethod,
+        VerificationMethodSet,
+    },
+};
 use tracing::debug;
 use x509_cert::{
     der::Encode,
@@ -40,20 +47,26 @@ pub struct DIDClient {
 }
 
 impl DIDClient {
-    pub async fn new(
+    pub async fn new<M>(
         vm: String,
         signer: Arc<dyn RequestSigner + Send + Sync>,
-        resolver: &dyn DIDResolver,
-    ) -> Result<Self> {
+        resolver: &VerificationMethodDIDResolver<impl DIDResolver, M>,
+    ) -> Result<Self>
+    where
+        M: MaybeJwkVerificationMethod
+            + VerificationMethodSet
+            + TryFrom<GenericVerificationMethod, Error = InvalidVerificationMethod>,
+    {
         let (id, _f) = vm.rsplit_once('#').context(format!(
             "expected a DID verification method, received '{vm}'"
         ))?;
 
-        let key = ssi::did_resolve::resolve_key(&vm, resolver)
+        let key = resolver
+            .fetch_public_jwk(Some(&vm))
             .await
             .context("unable to resolve key from verification method")?;
 
-        if &key != signer.jwk() {
+        if &*key != signer.jwk() {
             bail!(
                 "verification method resolved from DID document did not match public key of signer"
             )
